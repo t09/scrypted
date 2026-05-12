@@ -12,9 +12,9 @@ import { checkProperty } from './plugin-state-check';
 
 export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAPI {
     pluginId: string;
-    typesVersion: string;
-    descriptors: { [scryptedInterface: string]: ScryptedInterfaceDescriptor };
-    propertyInterfaces: ReturnType<typeof getPropertyInterfaces>;
+    typesVersion!: string;
+    descriptors!: { [scryptedInterface: string]: ScryptedInterfaceDescriptor };
+    propertyInterfaces!: ReturnType<typeof getPropertyInterfaces>;
 
     [RpcPeer.PROPERTY_PROXY_ONEWAY_METHODS] = [
         'onMixinEvent',
@@ -56,12 +56,16 @@ export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAP
             const nativeId: string = nativeIdOrMixinDevice;
             // todo: deprecate this code path
             const mixinProvider = this.scrypted.findPluginDevice(this.pluginId, nativeId);
+            if (!mixinProvider)
+                throw new Error(`mixin provider not found for native id ${nativeId}`);
             const mixins: string[] = getState(device, ScryptedInterfaceProperty.mixins) || [];
             if (!mixins.includes(mixinProvider._id))
                 throw new Error(`${mixinProvider._id} is not a mixin provider for ${id}`);
 
             this.scrypted.findPluginDevice(this.pluginId, nativeId);
-            const tableEntry = this.scrypted.devices[device._id].handler.mixinTable.find(entry => entry.mixinProviderId === mixinProvider._id);
+            const tableEntry = this.scrypted.devices[device._id]?.handler?.mixinTable?.find((entry: any) => entry.mixinProviderId === mixinProvider._id);
+            if (!tableEntry)
+                throw new Error(`no mixin table entry found for ${mixinProvider._id} on ${id}`);
             const { interfaces } = await tableEntry.entry;
             if (!interfaces.has(eventInterface))
                 throw new Error(`${mixinProvider._id} does not mixin ${eventInterface} for ${id}`);
@@ -87,7 +91,7 @@ export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAP
 
     async getLogger(nativeId: ScryptedNativeId): Promise<Logger> {
         const device = this.scrypted.findPluginDevice(this.pluginId, nativeId);
-        return this.scrypted.getDeviceLogger(device);
+        return this.scrypted.getDeviceLogger(device!)!;
     }
 
     async getComponent(id: string): Promise<any> {
@@ -103,7 +107,7 @@ export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAP
         return this.scrypted.getComponent(id);
     }
 
-    setDeviceProperty(id: string, property: ScryptedInterfaceProperty, value: any): Promise<void> {
+    async setDeviceProperty(id: string, property: ScryptedInterfaceProperty, value: any): Promise<void> {
         switch (property) {
             case ScryptedInterfaceProperty.room:
             case ScryptedInterfaceProperty.type:
@@ -127,22 +131,30 @@ export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAP
     }
 
     async setStorage(nativeId: ScryptedNativeId, storage: { [key: string]: string }) {
-        const device = this.scrypted.findPluginDevice(this.pluginId, nativeId)
+        const device = this.scrypted.findPluginDevice(this.pluginId, nativeId)!;
         device.storage = storage;
         this.scrypted.datastore.upsert(device);
     }
 
     async onDevicesChanged(deviceManifest: DeviceManifest) {
         const provider = this.scrypted.findPluginDevice(this.pluginId, deviceManifest.providerNativeId);
-        const existing = this.scrypted.findPluginDevices(this.pluginId).filter(p => p.state[ScryptedInterfaceProperty.providerId].value === provider._id);
-        const newIds = deviceManifest.devices.map(device => device.nativeId);
+        if (!provider)
+            throw new Error(`provider not found for plugin id ${this.pluginId} native id ${deviceManifest.providerNativeId}`);
+        const existing = this.scrypted.findPluginDevices(this.pluginId).filter(p => {
+            const state = p.state[ScryptedInterfaceProperty.providerId];
+            if (!state)
+                throw new Error(`providerId state not found for device ${p._id}`);
+            return state.value === provider._id;
+        });
+        const devices = deviceManifest.devices || [];
+        const newIds = devices.map(device => device.nativeId);
         const toRemove = existing.filter(e => e.nativeId && !newIds.includes(e.nativeId));
 
         for (const remove of toRemove) {
             await this.scrypted.removeDevice(remove);
         }
 
-        for (const upsert of deviceManifest.devices) {
+        for (const upsert of devices) {
             upsert.providerNativeId = deviceManifest.providerNativeId;
             const id = await this.pluginHost.upsertDevice(upsert);
             this.scrypted.getDevice(id)?.probe().catch(() => { });
@@ -156,16 +168,16 @@ export class PluginHostAPI extends PluginAPIManagedListeners implements PluginAP
     }
 
     async onDeviceRemoved(nativeId: string) {
-        await this.scrypted.removeDevice(this.scrypted.findPluginDevice(this.pluginId, nativeId))
+        await this.scrypted.removeDevice(this.scrypted.findPluginDevice(this.pluginId, nativeId)!)
     }
 
     async onDeviceEvent(nativeId: any, eventInterface: any, eventData?: any) {
-        const plugin = this.scrypted.findPluginDevice(this.pluginId, nativeId);
+        const plugin = this.scrypted.findPluginDevice(this.pluginId, nativeId)!;
         this.scrypted.stateManager.notifyInterfaceEventFromMixin(plugin, eventInterface, eventData, plugin._id);
     }
 
     async getDeviceById<T>(id: string): Promise<T & ScryptedDevice> {
-        return this.scrypted.getDevice(id);
+        return this.scrypted.getDevice(id)!;
     }
     async listen(callback: (id: string, eventDetails: EventDetails, eventData: any) => void): Promise<EventListenerRegister> {
         return this.manageListener(this.scrypted.stateManager.listen(callback));

@@ -63,7 +63,7 @@ export class HttpResponseImpl implements HttpResponse {
 
         // prefer etag
         this.res.sendFile(filePath, {
-            root: null,
+            root: undefined,
             dotfiles: 'allow',
             cacheControl: false,
         });
@@ -110,7 +110,7 @@ export class HttpResponseImpl implements HttpResponse {
                 this.res.end();
             }
             catch (e) {
-                this.res.destroy(e);
+                this.res.destroy(e as Error);
             }
             finally {
                 peer.kill();

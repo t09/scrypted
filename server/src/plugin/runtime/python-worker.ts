@@ -13,7 +13,7 @@ import { RuntimeWorkerOptions } from "./runtime-worker";
 
 export class PythonRuntimeWorker extends ChildProcessWorker {
     static {
-        if (!fs.existsSync(process.env.SCRYPTED_PYTHON_PATH)) {
+        if (!process.env.SCRYPTED_PYTHON_PATH || !fs.existsSync(process.env.SCRYPTED_PYTHON_PATH)) {
             try {
                 const py = new PortablePython(packagedPythonVersion);
                 const portablePython = py.executablePath;
@@ -26,18 +26,18 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
         }
     }
 
-    serializer: ReturnType<typeof createRpcDuplexSerializer>;
+    serializer!: ReturnType<typeof createRpcDuplexSerializer>;
     peerin: Writable;
     peerout: Readable;
     _stdout = new PassThrough();
     _stderr = new PassThrough();
     pythonInstallationComplete = true;
 
-    get stdout() {
+    override get stdout() {
         return this._stdout;
     }
 
-    get stderr() {
+    override get stderr() {
         return this._stderr;
     }
 
@@ -99,7 +99,7 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
         const setup = () => {
             const types = require.resolve('@scrypted/types');
             const PYTHONPATH = types.substring(0, types.indexOf('types') + 'types'.length);
-            this.worker = child_process.spawn(pythonPath, args, {
+            this.worker = child_process.spawn(pythonPath as string, args, {
                 cwd: options.unzippedPath,
                 // stdin, stdout, stderr, peer in, peer out
                 stdio: ['pipe', 'pipe', 'pipe', 'pipe', 'pipe'],
@@ -112,8 +112,8 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
             });
             this.setupWorker();
 
-            this.worker.stdout.pipe(this.stdout);
-            this.worker.stderr.pipe(this.stderr);
+            this.worker.stdout!.pipe(this.stdout);
+            this.worker.stderr!.pipe(this.stderr);
         };
 
         let pluginPythonVersion: string = options.packageJson.scrypted.pythonVersion?.[os.platform()]?.[os.arch()] || options.packageJson.scrypted.pythonVersion?.default;
@@ -125,8 +125,8 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
         // if the plugin requests a specific python, then install it via portable python
         if (!pluginPythonVersion) {
             setup();
-            this.peerin = this.worker.stdio[3] as Writable;
-            this.peerout = this.worker.stdio[4] as Readable;
+            this.peerin = this.worker!.stdio[3]! as Writable;
+            this.peerout = this.worker!.stdio[4]! as Readable;
             return;
         }
 
@@ -135,8 +135,8 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
         if (envPython && fs.existsSync(envPython)) {
             pythonPath = envPython;
             setup();
-            this.peerin = this.worker.stdio[3] as Writable;
-            this.peerout = this.worker.stdio[4] as Readable;
+            this.peerin = this.worker!.stdio[3]! as Writable;
+            this.peerout = this.worker!.stdio[4]! as Readable;
             return;
         }
 
@@ -146,8 +146,8 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
         const finishSetup = () => {
             setup();
 
-            peerin.pipe(this.worker.stdio[3] as Writable);
-            (this.worker.stdio[4] as Readable).pipe(peerout);
+            peerin.pipe(this.worker!.stdio[3]! as Writable);
+            (this.worker!.stdio[4]! as Readable).pipe(peerout);
         };
 
         const pyVersion = require('py/package.json').version;
@@ -200,7 +200,7 @@ export class PythonRuntimeWorker extends ChildProcessWorker {
             this.serializer.sendMessage(message, reject, serializationContext);
         }
         catch (e) {
-            reject?.(e);
+            reject?.(e as Error);
         }
     }
 }

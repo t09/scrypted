@@ -1,8 +1,7 @@
 #! /usr/bin/env node
+import * as scrypted from './index.js';
 
-const scrypted = require('./index.js');
-
-function report(err) {
+function report(err: string): void {
     process.nextTick(() => {
         throw new Error(err);
     });
@@ -10,11 +9,11 @@ function report(err) {
 
 if (process.argv.length != 3) {
     report('Usage: npm run scrypted-deploy <ip_address>');
-    return 1;
+    process.exit(1);
 }
 
 scrypted.deploy(process.argv[2])
-.catch((err) => {
-    console.error(err.message);
-    report('deploy failed');
-});
+    .catch((err: Error) => {
+        console.error(err.message);
+        report('deploy failed');
+    });

@@ -65,21 +65,21 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
     clusterId = crypto.randomBytes(3).toString('hex');
     clusterSecret = process.env.SCRYPTED_CLUSTER_SECRET || crypto.randomBytes(16).toString('hex');
     clusterWorkers = new Map<string, RunningClusterWorker>();
-    serverClusterWorkerId: string;
+    serverClusterWorkerId!: string;
     plugins: { [id: string]: PluginHost } = {};
     pluginDevices: { [id: string]: PluginDevice } = {};
     devices: { [id: string]: DeviceProxyPair } = {};
     stateManager = new ScryptedStateManager(this);
     logger = new Logger(this, '', 'Scrypted');
     devicesLogger = this.logger.getLogger('device', 'Devices');
-    wss = new WebSocketServer({ noServer: true });
+    override wss = new WebSocketServer({ noServer: true });
     wsAtomic = 0;
     connectRPCObjectIO: IOServer = new io.Server({
         pingTimeout: 120000,
         perMessageDeflate: true,
         cors: (req, callback) => {
             const header = this.getAccessControlAllowOrigin(req.headers);
-            callback(undefined, {
+            callback(undefined!, {
                 origin: header,
                 credentials: true,
             })
@@ -166,7 +166,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
             datastore.upsert(alert);
 
-            this.stateManager.notifyInterfaceEvent(null, 'Logger' as any, logEntry);
+            this.stateManager.notifyInterfaceEvent(undefined, 'Logger' as any, logEntry);
         });
 
         // purge logs older than 2 hours every hour
@@ -196,40 +196,40 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With, Access-Control-Request-Method');
     }
 
-    getAccessControlAllowOrigin(headers: http.IncomingHttpHeaders) {
+    getAccessControlAllowOrigin(headers: http.IncomingHttpHeaders): string | undefined {
         let { origin, referer } = headers;
         if (!origin && referer) {
             try {
-                const u = new URL(headers.referer)
+                const u = new URL(headers.referer!)
                 origin = u.origin;
             }
             catch (e) {
-                return;
+                return undefined;
             }
         }
         if (!origin)
-            return;
+            return undefined;
         const servers: string[] = process.env.SCRYPTED_ACCESS_CONTROL_ALLOW_ORIGINS?.split(',') || [];
         servers.push(...Object.values(this.corsControl.origins).flat());
         if (!servers.includes(origin))
-            return;
+            return undefined;
 
         return origin;
     }
 
-    getDeviceLogger(device: PluginDevice): Logger {
+    getDeviceLogger(device: PluginDevice): Logger | undefined {
         if (!device)
-            return;
+            return undefined;
         return this.devicesLogger.getLogger(device._id, getState(device, ScryptedInterfaceProperty.name));
     }
 
     async getPluginForEndpoint(endpoint: string): Promise<HttpPluginData> {
-        let pluginHost = this.plugins[endpoint] ?? this.getPluginHostForDeviceId(endpoint);
+        let pluginHost = this.plugins[endpoint] ?? this.getPluginHostForDeviceId(endpoint)!;
         if (endpoint === '@scrypted/core') {
             // enforce a minimum version on @scrypted/core
             if (!pluginHost || semver.lt(pluginHost.packageJson.version, MIN_SCRYPTED_CORE_VERSION)) {
                 try {
-                    pluginHost = await this.installNpm('@scrypted/core');
+                    pluginHost = (await this.installNpm('@scrypted/core'))!;
                 }
                 catch (e) {
                     console.error('@scrypted/core auto install failed', e);
@@ -250,7 +250,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
         const end = (code: number, message: string) => {
             if (isUpgrade) {
-                const socket = res.socket;
+                const socket = res.socket!;
                 socket.write(`HTTP/1.1 ${code} ${message}\r\n` +
                     '\r\n');
                 socket.destroy();
@@ -268,12 +268,12 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
         const reqany = req as any;
         if ((req as any).upgradeHead)
-            this.connectRPCObjectIO.handleUpgrade(reqany, res.socket, reqany.upgradeHead)
+            this.connectRPCObjectIO.handleUpgrade(reqany, res.socket!, reqany.upgradeHead)
         else
             this.connectRPCObjectIO.handleRequest(reqany, res);
     }
 
-    async getEndpointPluginData(req: Request, endpoint: string, isUpgrade: boolean, isEngineIOEndpoint: boolean): Promise<HttpPluginData> {
+    async getEndpointPluginData(req: Request, endpoint: string, isUpgrade: boolean, isEngineIOEndpoint: boolean): Promise<HttpPluginData | undefined> {
         const ret = await this.getPluginForEndpoint(endpoint);
         if (req.url.indexOf('/engine.io/api') !== -1)
             return ret;
@@ -282,13 +282,13 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
         // check if upgrade requests can be handled. must be websocket.
         if (isUpgrade) {
-            if (!pluginDevice?.state.interfaces.value.includes(ScryptedInterface.EngineIOHandler)) {
-                return;
+            if (!pluginDevice?.state!.interfaces!.value.includes(ScryptedInterface.EngineIOHandler)) {
+                return undefined;
             }
         }
         else {
-            if (!isEngineIOEndpoint && !pluginDevice?.state.interfaces.value.includes(ScryptedInterface.HttpRequestHandler)) {
-                return;
+            if (!isEngineIOEndpoint && !pluginDevice?.state!.interfaces!.value.includes(ScryptedInterface.HttpRequestHandler)) {
+                return undefined;
             }
         }
 
@@ -375,23 +375,24 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         }
         else {
             const plugin = await this.datastore.tryGet(Plugin, pluginId);
-            packageJson = plugin.packageJson;
+            packageJson = plugin!.packageJson;
         }
         return packageJson;
     }
 
-    async getAccessControls(username: string) {
+    async getAccessControls(username: string): Promise<AccessControls | undefined> {
         if (!username)
-            return;
+            return undefined;
 
         const user = await this.datastore.tryGet(ScryptedUser, username);
         if (user?.aclId) {
             const accessControl = this.getDevice<SU>(user.aclId);
-            const acls = await accessControl.getScryptedUserAccessControl();
+            const acls = await accessControl!.getScryptedUserAccessControl();
             if (!acls)
-                return;
+                return undefined;
             return new AccessControls(acls);
         }
+        return undefined;
     }
 
     async handleEngineIOEndpoint(req: Request, res: ServerResponse & { locals: any }, endpointRequest: HttpRequest, pluginData: HttpPluginData) {
@@ -405,7 +406,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         }
 
         const { username } = res.locals;
-        let accessControls: AccessControls;
+        let accessControls: AccessControls | undefined;
 
         try {
             accessControls = await this.getAccessControls(username);
@@ -434,16 +435,16 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         };
 
         if ((req as any).upgradeHead)
-            pluginHost.io.handleUpgrade(reqany, res.socket, reqany.upgradeHead)
+            pluginHost.io.handleUpgrade(reqany, res.socket!, reqany.upgradeHead)
         else
             pluginHost.io.handleRequest(reqany, res);
     }
 
     handleRequestEndpoint(req: Request, res: Response, endpointRequest: HttpRequest, pluginData: HttpPluginData) {
         const { pluginHost, pluginDevice } = pluginData;
-        const handler = this.getDevice<HttpRequestHandler>(pluginDevice._id);
+        const handler = this.getDevice<HttpRequestHandler>(pluginDevice._id)!;
         if (handler.interfaces.includes(ScryptedInterface.EngineIOHandler) && isConnectionUpgrade(req.headers) && req.headers.upgrade?.toLowerCase() === 'websocket') {
-            this.wss.handleUpgrade(req, req.socket, null, ws => {
+            this.wss.handleUpgrade(req, req.socket, null!, ws => {
                 console.log(ws);
             });
         }
@@ -472,20 +473,18 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         this.invalidatePluginMixins(pluginId);
     }
 
-    // should this be async?
-    invalidatePluginDevice(id: string) {
+    invalidatePluginDevice(id: string): DeviceProxyPair | undefined {
         const proxyPair = this.devices[id];
         if (!proxyPair)
-            return;
+            return undefined;
         proxyPair.handler.invalidate();
         return proxyPair;
     }
 
-    // should this be async?
-    rebuildPluginDeviceMixinTable(id: string) {
+    rebuildPluginDeviceMixinTable(id: string): DeviceProxyPair | undefined {
         const proxyPair = this.devices[id];
         if (!proxyPair)
-            return;
+            return undefined;
         proxyPair.handler.rebuildMixinTable();
         return proxyPair;
     }
@@ -535,17 +534,17 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         // rebuild the mixin tables.
         for (const id of ret) {
             const device = this.devices[id];
-            device.handler.rebuildMixinTable();
+            device!.handler.rebuildMixinTable();
         }
 
         return ret;
     }
 
-    async installNpm(pkg: string, version?: string, installedSet?: Set<string>): Promise<PluginHost> {
+    async installNpm(pkg: string, version?: string, installedSet?: Set<string>): Promise<PluginHost | undefined> {
         if (!installedSet)
             installedSet = new Set();
         if (installedSet.has(pkg))
-            return;
+            return undefined;
         installedSet.add(pkg);
 
         const registry = await getNpmPackageInfo(pkg);
@@ -555,7 +554,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         console.log('installing package', pkg, version);
 
         const { body: tarball } = await httpFetch({
-            url: `${registry.versions[version].dist.tarball}`,
+            url: `${registry.versions[version!].dist.tarball}`,
             // force ipv4 in case of busted ipv6.
             family: 4,
         });
@@ -564,7 +563,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
             const pp = new TarParser();
         }
         catch (e) {
-            throw new Error(e);
+            throw e;
         }
         const parse = new TarParser();
         const files: { [name: string]: Buffer } = {};
@@ -597,7 +596,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
                     await this.installNpm(dep);
                 }
                 catch (e) {
-                    console.log('Skipping', dep, ':', e.message);
+                    console.log('Skipping', dep, ':', (e as Error).message);
                 }
             });
 
@@ -606,7 +605,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
             plugin._id = npmPackage;
             plugin.packageJson = packageJson;
-            plugin.zip = files['package/dist/plugin.zip'].toString('base64');
+            plugin.zip = files['package/dist/plugin.zip']!.toString('base64');
             await this.datastore.upsert(plugin);
 
             return this.installPlugin(plugin);
@@ -626,7 +625,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         } as Device);
         try {
             if (!device.interfaces.includes(ScryptedInterface.Readme)) {
-                const zipData = Buffer.from(plugin.zip, 'base64');
+                const zipData = Buffer.from(plugin.zip!, 'base64');
                 const adm = new AdmZip(zipData);
                 const entry = adm.getEntry('README.md');
                 if (entry) {
@@ -635,16 +634,16 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
                 }
             }
         }
-        catch (e) {
+        catch (e: any) {
         }
         this.upsertDevice(plugin._id, device);
         return this.runPlugin(plugin, pluginDebug);
     }
 
     setupPluginHostAutoRestart(pluginId: string, pluginHost?: PluginHost) {
-        const logger = this.getDeviceLogger(this.findPluginDevice(pluginId));
+        const logger = this.getDeviceLogger(this.findPluginDevice(pluginId)!)!;
 
-        let timeout: NodeJS.Timeout;
+        let timeout: NodeJS.Timeout | undefined;
 
         const restart = () => {
             if (timeout)
@@ -671,7 +670,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
                 try {
                     await this.runPlugin(plugin);
                 }
-                catch (e) {
+                catch (e: any) {
                     logger.log('e', `error restarting plugin ${pluginId}`);
                     logger.log('e', e.toString());
                     restart();
@@ -704,8 +703,8 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
             return pluginHost;
         }
-        catch (e) {
-            const logger = this.getDeviceLogger(this.findPluginDevice(pluginId));
+        catch (e: any) {
+            const logger = this.getDeviceLogger(this.findPluginDevice(pluginId)!)!;
             if (e instanceof UnsupportedRuntimeError) {
                 logger.log('e', 'error loading plugin (not retrying)');
                 logger.log('e', e.toString());
@@ -759,7 +758,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
         return pluginHost;
     }
 
-    findPluginDevice(pluginId: string, nativeId?: ScryptedNativeId): PluginDevice {
+    findPluginDevice(pluginId: string, nativeId?: ScryptedNativeId): PluginDevice | undefined {
         // JSON stringify over rpc turns undefined into null.
         if (nativeId === null)
             nativeId = undefined;
@@ -767,28 +766,28 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
     }
 
     findPluginDeviceById(id: string): PluginDevice {
-        return this.pluginDevices[id];
+        return this.pluginDevices[id]!;
     }
 
     findPluginDevices(pluginId: string): PluginDevice[] {
         return Object.values(this.pluginDevices).filter(e => e.state && e.pluginId === pluginId)
     }
 
-    getPluginHostForDeviceId(id: string): PluginHost {
+    getPluginHostForDeviceId(id: string): PluginHost | undefined {
         const device = this.pluginDevices[id];
         if (!device)
-            return;
+            return undefined;
         return this.plugins[device.pluginId];
     }
 
-    getDevice<T>(id: string): T & ScryptedDevice {
+    getDevice<T>(id: string): (T & ScryptedDevice) | undefined {
         const device = this.devices[id];
         if (device)
             return device.proxy as any;
 
         if (!this.pluginDevices[id]) {
             console.warn('device not found', id);
-            return;
+            return undefined;
         }
 
         const handler = new PluginDeviceProxyHandler(this, id);
@@ -810,7 +809,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
             await this.removeDevice(provided);
         }
         const providerId = device.state?.providerId?.value;
-        device.state = undefined;
+        device.state = undefined!;
 
         this.invalidatePluginDevice(device._id);
         delete this.pluginDevices[device._id];
@@ -835,8 +834,8 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
             try {
                 // notify the plugin that a device was removed.
                 const plugin = this.plugins[device.pluginId];
-                await plugin.remote.setNativeId(device.nativeId, undefined, undefined);
-                const provider = this.getDevice<DeviceProvider>(providerId);
+                await plugin!.remote.setNativeId(device.nativeId!, undefined!, undefined!);
+                const provider = this.getDevice<DeviceProvider>(providerId!);
                 await provider?.releaseDevice(device._id, device.nativeId);
             }
             catch (e) {
@@ -950,7 +949,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
             let mixins: string[] = getState(pluginDevice, ScryptedInterfaceProperty.mixins) || [];
 
             let dirty = false;
-            if (mixins.includes(null) || mixins.includes(undefined)) {
+            if (mixins.includes(null!) || mixins.includes(undefined!)) {
                 dirty = true;
                 setState(pluginDevice, ScryptedInterfaceProperty.mixins, mixins.filter(e => !!e));
             }
@@ -997,7 +996,7 @@ export class ScryptedRuntime extends PluginHttp<HttpPluginData> {
 
         for (const plugin of plugins) {
             try {
-                const pluginDevice = this.findPluginDevice(plugin._id);
+                const pluginDevice = this.findPluginDevice(plugin._id)!;
                 setState(pluginDevice, ScryptedInterfaceProperty.info, {
                     manufacturer: plugin.packageJson.name,
                     version: plugin.packageJson.version,

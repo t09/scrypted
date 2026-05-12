@@ -1,7 +1,12 @@
 #! /usr/bin/env node
-const fs = require('fs');
+import fs from 'fs';
 
-const pkg = JSON.parse(fs.readFileSync('package.json'));
+interface PackageJson {
+    scripts?: Record<string, string>;
+    [key: string]: unknown;
+}
+
+const pkg: PackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 pkg.scripts = Object.assign({
     "scrypted-setup-project": "scrypted-setup-project",
     "prescrypted-setup-project": "scrypted-package-json",

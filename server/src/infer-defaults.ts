@@ -36,12 +36,16 @@ addType(ScryptedInterface.HttpRequestHandler, ScryptedDeviceType.DataSource);
 addType(ScryptedInterface.BufferConverter, ScryptedDeviceType.API);
 addType(ScryptedInterface.DeviceProvider, ScryptedDeviceType.DeviceProvider);
 
-export function inferTypeFromInterfaces(interfaces: ScryptedInterface[]): ScryptedDeviceType {
+export function inferTypeFromInterfaces(interfaces: ScryptedInterface[]): ScryptedDeviceType | undefined {
     return inferTypesFromInterfaces(interfaces)[0];
 }
 
 export function inferTypesFromInterfaces(interfaces: ScryptedInterface[]): ScryptedDeviceType[] {
-    const types = Object.keys(inferenceTable).filter(iface => interfaces.includes(iface as ScryptedInterface)).map(iface => inferenceTable[iface]).flat();
+    const types = Object.keys(inferenceTable)
+        .filter(iface => interfaces.includes(iface as ScryptedInterface))
+        .map(iface => inferenceTable[iface])
+        .filter((types): types is ScryptedDeviceType[] => types !== undefined)
+        .flat();
     return types;
 }
 
@@ -96,24 +100,24 @@ const roomHints: { [hint: string]: string } = {
     'Laundry': 'Laundry Room',
 }
 
-export function inferRoomFromName(name: string): string {
+export function inferRoomFromName(name: string): string | undefined {
     if (!name)
-        return;
+        return undefined;
     for (const hint of Object.keys(roomHints)) {
         if (name.includes(hint))
             return roomHints[hint];
     }
+    return undefined;
 }
 
-export function getProvidedRoomOrDefault(pluginDevice: PluginDevice): string {
+export function getProvidedRoomOrDefault(pluginDevice: PluginDevice): string | undefined {
     const providedRoom = getState(pluginDevice, ScryptedInterfaceProperty.providedRoom);
     if (providedRoom)
         return providedRoom;
-    const room = inferRoomFromName(getDisplayName(pluginDevice));
-    return room;
+    return inferRoomFromName(getDisplayName(pluginDevice));
 }
 
-export function getDisplayRoom(pluginDevice: PluginDevice): string {
+export function getDisplayRoom(pluginDevice: PluginDevice): string | undefined {
     const room = getState(pluginDevice, ScryptedInterfaceProperty.room);
     if (room)
         return room;

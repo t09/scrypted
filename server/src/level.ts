@@ -1,8 +1,8 @@
 import { GetOptions, Level, OpenOptions, PutOptions } from 'level';
 
 export interface LevelDocument {
-    _id?: any;
-    _documentType?: string;
+    _id: any;
+    _documentType: string;
 }
 
 export interface LevelDocumentConstructor<T extends LevelDocument> {
@@ -16,11 +16,11 @@ function createLevelDocument(documentConstructor: any, json: any) {
 }
 
 export class WrappedLevel extends Level<string, string | number> {
-    curId: number;
+    curId!: number;
 
-    async open(): Promise<void>;
-    async open(options?: OpenOptions): Promise<void> {
-        await super.open(options);
+    override async open(): Promise<void>;
+    override async open(options?: OpenOptions): Promise<void> {
+        await super.open(options!);
         try {
             this.curId = parseInt(await this.get('_id') as string);
         }
@@ -31,14 +31,15 @@ export class WrappedLevel extends Level<string, string | number> {
     }
 
 
-    async tryGet<T>(documentConstructor: new () => T, _id: any, options?: GetOptions<string, string | number>): Promise<T> {
+    async tryGet<T>(documentConstructor: new () => T, _id: any, options?: GetOptions<string, string | number>): Promise<T | undefined> {
         try {
             const _documentType = documentConstructor.name;
             const key = `${_documentType}/${_id}`;
-            const json = await this.get(key, options)
+            const json = await this.get(key, options!)
             return createLevelDocument(documentConstructor, json);
         }
         catch (e) {
+            return undefined;
         }
     }
 
@@ -82,7 +83,7 @@ export class WrappedLevel extends Level<string, string | number> {
 
         value._documentType = _documentType;
         const key = `${_documentType}/${value._id}`;
-        await this.put(key, JSON.stringify(value), options);
+        await this.put(key, JSON.stringify(value), options!);
         return value;
     };
 

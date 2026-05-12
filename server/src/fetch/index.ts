@@ -66,14 +66,14 @@ export type fetcher<B, M> = <T extends HttpFetchOptions<B>>(options: T) => Promi
 >>;
 
 
-export function getHttpFetchAccept(responseType: HttpFetchResponseType | undefined) {
+export function getHttpFetchAccept(responseType: HttpFetchResponseType | undefined): string | undefined {
     switch (responseType) {
         case 'json':
             return 'application/json';
         case 'text':
             return 'text/plain';
     }
-    return;
+    return undefined;
 }
 
 export function hasHeader(headers: [string, string][], key: string) {
@@ -119,10 +119,7 @@ export function createHeadersArray(headers: HeadersInit | undefined): [string, s
         return headersArray;
     }
 
-    for (const k of Object.keys(headers)) {
-        const v = headers[k];
-        headersArray.push([k, v]);
-    }
+    headersArray.push(...Object.entries(headers));
 
     return headersArray;
 }
@@ -135,7 +132,7 @@ export function createHeadersArray(headers: HeadersInit | undefined): [string, s
  */
 export function createStringOrBufferBody(headers: [string, string][], body: any) {
     let contentType: string | undefined;
-    if (typeof body === 'object') {
+    if (typeof body === 'object' && !ArrayBuffer.isView(body)) {
         body = JSON.stringify(body);
         contentType = 'application/json';
     }

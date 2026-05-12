@@ -1,15 +1,19 @@
 #! /usr/bin/env node
-const child_process = require('child_process');
-const util = require('util');
-const fs = require('fs');
+import child_process from 'child_process';
+import util from 'util';
+import fs from 'fs';
 
 const shas = child_process.execSync('git log --format=format:%H .');
 const exec = util.promisify(child_process.exec);
 
-const versions = new Map();
+const versions = new Map<string, string>();
+
+interface VersionInfo {
+    packageJson?: { version?: string };
+    commit?: string;
+}
 
 const promises = shas.toString().split('\n').map(sha => sha.trim()).map(async sha => {
-    // console.log(sha);
     try {
         const result = await exec(`git show ${sha}:./package.json`);
         const packageJson = JSON.parse(result.stdout);
@@ -24,17 +28,16 @@ const promises = shas.toString().split('\n').map(sha => sha.trim()).map(async sh
     }
 });
 
-
 Promise.all(promises).then(pairs => {
-    // console.log(pairs);
-    const validPairs = pairs.filter(pair => pair?.packageJson?.version);
+    const validPairs = (pairs as (VersionInfo | undefined)[]).filter((pair): pair is VersionInfo => !!pair?.packageJson?.version);
     for (const valid of validPairs) {
         const { packageJson, commit } = valid;
-        const { version } = packageJson;
+        const version = packageJson!.version!;
+        if (!version) continue;
+        
         let log = versions.get(version) || '';
-        const firstLine = commit.split('\n')[1];
+        const firstLine = commit?.split('\n')[1] || '';
 
-        // filter out some junk commits
         if ([version, 'wip', 'logging', 'wiop', 'publish'].includes(firstLine))
             continue;
 

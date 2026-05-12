@@ -19,9 +19,9 @@ export interface PluginAPI {
     onDeviceEvent(nativeId: ScryptedNativeId, eventInterface: string, eventData?: any): Promise<void>;
     onMixinEvent(id: string, nativeId: ScryptedNativeId, eventInterface: string, eventData?: any): Promise<void>;
     onDeviceRemoved(nativeId: string): Promise<void>;
-    setStorage(nativeId: string, storage: { [key: string]: any }): Promise<void>;
+    setStorage(nativeId: ScryptedNativeId, storage: { [key: string]: any }): Promise<void>;
 
-    getDeviceById(id: string): Promise<ScryptedDevice>;
+    getDeviceById(id: string): Promise<ScryptedDevice | undefined>;
     setDeviceProperty(id: string, property: ScryptedInterfaceProperty, value: any): Promise<void>;
     removeDevice(id: string): Promise<void>;
     listen(EventListener: (id: string, eventDetails: EventDetails, eventData: any) => void): Promise<EventListenerRegister>;
@@ -69,7 +69,7 @@ export class PluginAPIManagedListeners {
 }
 
 export class PluginAPIProxy extends PluginAPIManagedListeners implements PluginAPI {
-    acl: AccessControls;
+    acl!: AccessControls;
 
     constructor(public api: PluginAPI, public mediaManager?: MediaManager) {
         super();
@@ -108,9 +108,9 @@ export class PluginAPIProxy extends PluginAPIManagedListeners implements PluginA
         this.acl?.deny();
         return this.api.setStorage(nativeId, storage);
     }
-    getDeviceById(id: string): Promise<ScryptedDevice> {
+    async getDeviceById(id: string): Promise<ScryptedDevice | undefined> {
         if (this.acl?.shouldRejectDevice(id))
-            return;
+            return undefined;
         return this.api.getDeviceById(id);
     }
     setDeviceProperty(id: string, property: ScryptedInterfaceProperty, value: any): Promise<void> {
@@ -148,7 +148,7 @@ export class PluginAPIProxy extends PluginAPIManagedListeners implements PluginA
         return this.api.getComponent(id);
     }
     async getMediaManager(): Promise<MediaManager> {
-        return this.mediaManager;
+        return this.mediaManager!;
     }
 
     async requestRestart() {
@@ -176,7 +176,7 @@ export class PluginZipAPI {
 }
 
 export interface PluginRemote {
-    loadZip(packageJson: any, zipAPI: PluginZipAPI, options: PluginRemoteLoadZipOptions): Promise<any>;
+    loadZip(packageJson: any, zipAPI: PluginZipAPI, options?: PluginRemoteLoadZipOptions): Promise<any>;
     setSystemState(state: { [id: string]: { [property: string]: SystemDeviceState } }): Promise<void>;
     setNativeId(nativeId: ScryptedNativeId, id: string, storage: { [key: string]: any }): Promise<void>;
     updateDeviceState(id: string, state: { [property: string]: SystemDeviceState }): Promise<void>;

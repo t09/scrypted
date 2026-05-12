@@ -41,7 +41,7 @@ export interface RpcApply extends RpcMessage {
     id: string | undefined;
     proxyId: string;
     args: any[];
-    method: string;
+    method?: string;
     oneway?: boolean;
 }
 
@@ -63,7 +63,7 @@ interface RpcRemoteProxyValue {
     __remote_proxy_finalizer_id: string | undefined;
     __remote_constructor_name: string;
     __remote_proxy_props: any;
-    __remote_proxy_oneway_methods: string[];
+    __remote_proxy_oneway_methods?: string[];
     __serialized_value?: any;
 }
 
@@ -74,7 +74,7 @@ interface RpcLocalProxyValue {
 interface Deferred {
     resolve: (value: any) => void;
     reject: (e: Error) => void;
-    method: string;
+    method: string | undefined;
 }
 
 export interface PrimitiveProxyHandler<T extends object> extends ProxyHandler<T> {
@@ -227,7 +227,7 @@ interface SerialiedRpcResultError {
 
 // todo: error constructor adds a "cause" variable in Chrome 93, Node v??
 export class RPCResultError extends Error {
-    constructor(peer: RpcPeer, message: string, public cause?: Error, options?: { name: string, stack: string | undefined }) {
+    constructor(peer: RpcPeer, message: string, public override cause?: Error, options?: { name: string, stack: string | undefined }) {
         super(`${message}\n${peer.selfName}:${peer.peerName}`);
 
         if (options?.name) {
@@ -278,7 +278,7 @@ interface LocalProxiedEntry {
 
 interface ErrorType {
     name: string;
-    message: string;
+    message?: string;
     stack?: string;
 }
 
@@ -293,7 +293,7 @@ export class RpcPeer {
     finalizers = new FinalizationRegistry(entry => this.finalize(entry as LocalProxiedEntry));
     nameDeserializerMap = new Map<string, RpcSerializer>();
     onProxyTypeSerialization = new Map<string, (value: any) => void>();
-    onProxySerialization: (value: any) => {
+    onProxySerialization?: (value: any) => {
         proxyId: string;
         properties: any;
     };
@@ -301,14 +301,14 @@ export class RpcPeer {
     transportSafeArgumentTypes = RpcPeer.getDefaultTransportSafeArgumentTypes();
     killed: Promise<string>;
     killedSafe: Promise<void>;
-    killedDeferred: Deferred;
+    killedDeferred!: Deferred;
     tags: any = {};
     yieldedAsyncIterators = new Set<AsyncGenerator>();
 
     static readonly finalizerIdSymbol = Symbol('rpcFinalizerId');
     static remotesCollected = 0;
     static remotesCreated = 0;
-    static activeRpcPeer: RpcPeer;
+    static activeRpcPeer: RpcPeer | undefined;
 
     static isRpcProxy(value: any) {
         return !!value?.[RpcPeer.PROPERTY_PROXY_ID];
@@ -350,9 +350,9 @@ export class RpcPeer {
     //     return value?.[RpcPeer.PROPERTY_PROXY_PROPERTIES];
     // }
 
-    static getIteratorNext(target: any): string {
+    static getIteratorNext(target: any): string | undefined {
         if (!target[Symbol.asyncIterator])
-            return;
+            return undefined;
         const proxyProps = target[this.PROPERTY_PROXY_PROPERTIES]?.[Symbol.asyncIterator.toString()];
         return proxyProps?.next || 'next';
     }
@@ -720,13 +720,12 @@ export class RpcPeer {
                 case 'param': {
                     const rpcParam = message as RpcParam;
                     const serializationContext: any = {};
-                    let result: RpcResult;
+                    const result: RpcResult = {
+                        type: 'result',
+                        id: rpcParam.id,
+                    };
                     try {
-                        result = {
-                            type: 'result',
-                            id: rpcParam.id,
-                            result: this.serialize(this.params[rpcParam.param], serializationContext)
-                        };
+                        result.result = this.serialize(this.params[rpcParam.param], serializationContext);
                     }
                     catch (e) {
                         // console.error('failure', rpcApply.method, e);

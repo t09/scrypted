@@ -5,12 +5,12 @@ import { MediaObjectRemote } from "./plugin-api";
 export class MediaObject implements MediaObjectRemote {
     __proxy_props: any;
 
-    constructor(public mimeType: string, public data: any, options: MediaObjectCreateOptions) {
+    constructor(public mimeType: string, public data: any, options?: MediaObjectCreateOptions) {
         this.__proxy_props = {}
         options ||= {};
         options.mimeType = mimeType;
-        options.convert ||= null;
-        options.toMimeTypes ||= null;
+        options!.convert ||= null!;
+        options!.toMimeTypes ||= null!;
 
         for (const [key, value] of Object.entries(options)) {
             if (RpcPeer.isTransportSafe(value))

@@ -77,7 +77,7 @@ export class NodeForkWorker extends ChildProcessWorker {
     }
 
     setupRpcPeer(peer: RpcPeer): void {
-        this.worker.on('message', (message, sendHandle) => {
+        this.worker!.on('message', (message, sendHandle) => {
             if ((message as any).type && sendHandle) {
                 peer.handleMessage(message as any, {
                     sendHandle,
@@ -105,11 +105,11 @@ export class NodeForkWorker extends ChildProcessWorker {
             });
         }
         catch (e) {
-            reject?.(e);
+            reject?.(e as Error);
         }
     }
 
-    get pid() {
+    override get pid() {
         return this.worker?.pid;
     }
 }

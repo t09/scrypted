@@ -6,7 +6,7 @@ export interface ClusterForkServiceInterface {
 }
 
 export class ClusterManagerImpl implements ClusterManager {
-    private clusterServicePromise: Promise<ClusterForkServiceInterface>;
+    private clusterServicePromise!: Promise<ClusterForkServiceInterface>;
     
     constructor(public clusterMode: undefined | 'client' | 'server', private api: PluginAPI, private clusterWorkerId: string) {
     }
@@ -16,7 +16,7 @@ export class ClusterManagerImpl implements ClusterManager {
     }
 
     getClusterAddress(): string {
-        return process.env.SCRYPTED_CLUSTER_ADDRESS;
+        return process.env.SCRYPTED_CLUSTER_ADDRESS!;
     }
 
     getClusterMode(): 'server' | 'client' | undefined {

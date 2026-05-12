@@ -25,16 +25,16 @@ export class AddressSettings {
         await this.scrypted.datastore.upsert(localAddresses);
     }
 
-    async getLocalAddresses(raw?: boolean): Promise<string[]> {
+    async getLocalAddresses(raw?: boolean): Promise<string[] | undefined> {
         const settings = await this.scrypted.datastore.tryGet(Settings, 'localAddresses');
 
         if (!settings?.value?.[0])
-            return;
+            return undefined;
 
         const ret: string[] = [];
         const networkInterfaces = os.networkInterfaces();
         const allAddresses = new Set(Object.values(networkInterfaces)
-            .flat().map(ni => ni.address));
+            .flat().filter((ni): ni is os.NetworkInterfaceInfo => ni !== undefined).map(ni => ni.address));
         for (const addressOrInterface of settings.value) {
             const nif = networkInterfaces[addressOrInterface];
             if (raw) {

@@ -9,7 +9,7 @@ export function matchesClusterLabels(options: ClusterForkOptions, labels: string
     }
 
     // if there is nothing in the any list, consider it matched
-    let foundAny: boolean;
+    let foundAny: boolean = false;
     if (options?.labels?.any?.length) {
         for (const label of options.labels.any) {
             if (labels.includes(label)) {
@@ -42,16 +42,16 @@ export function getClusterLabels() {
 }
 
 export function getClusterWorkerWeight() {
-    return parseFloat(process.env.SCRYPTED_CLUSTER_WEIGHT) || 1;
+    return parseFloat(process.env.SCRYPTED_CLUSTER_WEIGHT || '') || 1;
 }
 
-export function needsClusterForkWorker(options: ClusterForkOptions) {
+export function needsClusterForkWorker(options?: ClusterForkOptions) {
     return process.env.SCRYPTED_CLUSTER_ADDRESS
         && options
         && (!matchesClusterLabels(options, getClusterLabels()) || options.clusterWorkerId);
 }
 
-export function utilizesClusterForkWorker(options: ClusterForkOptions) {
+export function utilizesClusterForkWorker(options?: ClusterForkOptions) {
     return process.env.SCRYPTED_CLUSTER_ADDRESS
         && (options?.labels || options?.clusterWorkerId);
 }
